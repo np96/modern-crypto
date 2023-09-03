@@ -1,12 +1,12 @@
 package org.npop.modern.crypto
 
-import SHA256.{+, |, &, ^, >>, unary_!, Init, Word32, fromInt, k, ror}
+import Sha256.{+, |, &, ^, >>, unary_!, Init, Word32, fromInt, k, ror}
 
 import java.nio.charset.{Charset, StandardCharsets}
 import scala.collection.mutable
 import scala.collection.mutable.ArraySeq
 
-class SHA256(private val msg: Array[Byte]) {
+class Sha256(private val msg: Array[Byte]) {
 
   def digest(): Array[Byte] = {
     hash
@@ -70,12 +70,12 @@ class SHA256(private val msg: Array[Byte]) {
   }
 
   private def formBlocks(): Array[Array[Byte]] = {
-    val bytes  = Array.concat(msg, Array(0x80.toByte))
-    val len    = bytes.length + 64
-    val bCount = (len >> 8) + 1
+    val bytes  = Array.concat(msg, Array(128.toByte))
+    val len    = bytes.length * 8 + 64
+    val bCount = (len >> 9) + 1
     val blocks = Array.tabulate(bCount) { idx =>
       mutable.ArrayBuffer.from(
-        msg.slice(idx << 8, (idx + 1) << 8)
+        bytes.slice(idx << 6, (idx + 1) << 6)
       )
     }
     blocks.foreach { block =>
@@ -83,11 +83,11 @@ class SHA256(private val msg: Array[Byte]) {
         block += 0.toByte
       }
     }
-    val size = fromInt(bytes.length)
-    blocks.last(61) = size(0)
-    blocks.last(62) = size(1)
-    blocks.last(63) = size(2)
-    blocks.last(64) = size(3)
+    val size = fromInt(msg.length * 8)
+    blocks.last(60) = size(0)
+    blocks.last(61) = size(1)
+    blocks.last(62) = size(2)
+    blocks.last(63) = size(3)
 
     blocks.map { _.toArray }
   }
@@ -106,19 +106,19 @@ class SHA256(private val msg: Array[Byte]) {
   }
 }
 
-object SHA256 {
-  private[SHA256] type Word32 = Array[Byte]
+object Sha256 {
+  private[Sha256] type Word32 = Array[Byte]
 
-  private[SHA256] def _xor(a: Word32, b: Word32): Word32 = Array(
+  private[Sha256] def _xor(a: Word32, b: Word32): Word32 = Array(
     (a(0) ^ b(0)).toByte,
     (a(1) ^ b(1)).toByte,
     (a(2) ^ b(2)).toByte,
     (a(3) ^ b(3)).toByte
   )
 
-  private[SHA256] def _add(a: Word32, b: Word32): Word32 = {
+  private[Sha256] def _add(a: Word32, b: Word32): Word32 = {
     fromInt(
-      ((toInt(a).toLong + toInt(b).toLong) % (1 << 32)).toInt
+      ((Integer.toUnsignedLong(toInt(a)) + Integer.toUnsignedLong(toInt(b))) % (1L << 33)).toInt
     )
   }
 
@@ -129,7 +129,7 @@ object SHA256 {
     )
     def ^(w2: Word32): Word32 = _xor(w, w2)
 
-    def >>(n: Byte): Word32 = fromInt(toInt(w) >> n)
+    def >>(n: Byte): Word32 = fromInt(toInt(w) >>> n)
 
     def +(w2: Word32): Word32 = _add(w, w2)
 
@@ -148,28 +148,28 @@ object SHA256 {
     )
   }
 
-  private[SHA256] def toInt(w: Word32) = {
+  private[Sha256] def toInt(w: Word32) = {
     (w(0).toInt << 24) & 0xff000000 | (w(1).toInt << 16) & 0xff0000 | (w(2).toInt << 8) & 0xff00 | w(3).toInt & 0xff
   }
 
-  private[SHA256] def fromInt(n: Int): Word32 = {
-    val w0 = ((n & 0xff000000) >> 24).toByte
-    val w1 = ((n & 0x00ff0000) >> 16).toByte
-    val w2 = ((n & 0x0000ff00) >> 8).toByte
+  private[Sha256] def fromInt(n: Int): Word32 = {
+    val w0 = ((n & 0xff000000) >>> 24).toByte
+    val w1 = ((n & 0x00ff0000) >>> 16).toByte
+    val w2 = ((n & 0x0000ff00) >>> 8).toByte
     val w3 = (n & 0x000000ff).toByte
     Array(w0, w1, w2, w3)
   }
 
-  private[SHA256] def ror(w: Word32, d: Byte): Word32 = {
+  private[Sha256] def ror(w: Word32, d: Byte): Word32 = {
     val n = toInt(w)
-    fromInt((n >> d) | (n << d))
+    fromInt(Integer.rotateRight(n, d))
   }
 
   def apply(str: String): Array[Byte] = apply(str.getBytes(StandardCharsets.UTF_8))
 
-  def apply(msg: Array[Byte]): Array[Byte] = new SHA256(msg).digest()
+  def apply(msg: Array[Byte]): Array[Byte] = new Sha256(msg).digest()
 
-  private[SHA256] object Init {
+  private[Sha256] object Init {
     val h0 = 0x6a09e667
     val h1 = 0xbb67ae85
     val h2 = 0x3c6ef372
@@ -180,7 +180,7 @@ object SHA256 {
     val h7 = 0x5be0cd19
   }
 
-  private[SHA256] val k = Array(
+  private[Sha256] val k = Array(
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
     0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -198,4 +198,5 @@ object SHA256 {
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
   ).map(fromInt)
+
 }
