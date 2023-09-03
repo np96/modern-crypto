@@ -9,13 +9,20 @@ object RSA extends App {
 
   def generateKeypair(): (Array[Byte], Array[Byte]) = ???
 
+  // TODO class and parameter
+  val bits = 1024
+
+  val sRandom = new SecureRandom()
+  val seed = sRandom.generateSeed(bits)
+
+  sRandom.setSeed(seed)
+
+  val random = new Random(sRandom)
+
 
   private def randomN(bits: Int): BigInt = {
-    val minN   = BigInt.apply(Array.fill[Byte](bits >> 1)(1))
-    val random = new SecureRandom()
-    val seed   = random.generateSeed(bits)
-    random.setSeed(seed)
-    val between = BigInt.apply(bits >> 1, new Random(random))
+    val minN    = BigInt.apply(Array.fill[Byte](bits >> 1)(1))
+    val between = BigInt.apply(bits >> 1, random)
     minN + between
   }
 
@@ -48,9 +55,52 @@ object RSA extends App {
     primes.forall(p => number % p != 0)
   }
 
+  private def expmod(base: BigInt, exp: BigInt, mod: BigInt): BigInt = {
+    if (exp == 0) {
+      1
+    }
+    else if (exp % 2 == 0) {
+      expmod(base, exp / 2, mod).pow(2) % mod
+    } else {
+      (base * expmod(base, exp - 1, mod)) % mod
+    }
+  }
+
+  private def trialComposite(
+      tester: BigInt,
+      evenComp: BigInt,
+      number: BigInt,
+      maxDivs: Int): Boolean = {
+    if (expmod(tester, evenComp, number) == 1)
+      return false
+    for (i <- 0 until maxDivs) {
+      if (expmod(tester, (BigInt(1) << i) * evenComp, number) == number - 1)
+        return false
+    }
+    true
+  }
+
+  private def highLevelTest(number: BigInt): Boolean = {
+    var maxDiv   = 0
+    var evenComp = number - 1
+    while (evenComp % 2 == 0) {
+      evenComp >>= 1
+      maxDiv   +=  1
+    }
+    val trials = 40
+    for (_ <- 0 until trials) {
+      // TODO verify if this is correct
+      val tester = BigInt.apply(bits >> 1, random)
+      if (trialComposite(tester, evenComp, number, maxDiv)) {
+        return false
+      }
+    }
+    true
+  }
+
   private def candidate(bits: Int = 1024): BigInt = {
     var number = randomN(bits)
-    while (!lowLevelTest(number)) {
+    while (!lowLevelTest(number) && !highLevelTest(number)) {
       number = randomN(bits)
     }
     number
